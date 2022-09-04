@@ -152,7 +152,6 @@ def users_show(user_id):
                 .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all())
-    location = user.location
     return render_template('users/show.html', user=user, messages=messages)
 
 
@@ -213,16 +212,26 @@ def stop_following(follow_id):
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
+    user = g.user
 
-    if not g.user:
+    if not user:
         flash("access unauthorized.", "danger")
         return redirect('/')
-    form = UpdateForm()
-    username = form.username.data
-    email = form.email.data
-    image_url = form.image_url
-    header_image_url = form.header_image_url
-    bio = form.bio.data
+    form = UpdateForm(obj=user)
+
+    if form.validate_on_submit():
+        if User.authenticate(user.username, form.password.data):
+            user.username = form.username.data
+            user.email = form.email.data
+            user.image_url = form.image_url
+            user.header_image_url = form.header_image_url
+            user.bio = form.bio.data
+
+            db.session.commit()
+            return redirect(f'/users/{user.id}')
+        flash('Incorrect password, try again')
+    
+    return render_template('users/edit.html', form=form, user_id=user.id)
 
 
 
@@ -304,8 +313,12 @@ def homepage():
     """
 
     if g.user:
+        following = [follow.id for follow in g.user.following]
+        ids = following + [g.user.id]
+
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(ids))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
