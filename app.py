@@ -20,6 +20,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ECHO'] = False
 app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = True
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
+app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
@@ -223,8 +224,8 @@ def profile():
         if User.authenticate(user.username, form.password.data):
             user.username = form.username.data
             user.email = form.email.data
-            user.image_url = form.image_url
-            user.header_image_url = form.header_image_url
+            user.image_url = form.image_url.data
+            user.header_image_url = form.header_image_url.data
             user.bio = form.bio.data
 
             db.session.commit()
@@ -249,6 +250,36 @@ def delete_user():
     db.session.commit()
 
     return redirect("/signup")
+
+@app.route('/messages/<int:message_id>/like', methods=['POST'])
+def like_message(message_id):
+    if not g.user:
+        flash('Not authorized')
+        return redirect("/")
+
+    liked_message = Message.query.get_or_404(message_id)
+    user_likes = g.user.likes
+    if liked_message.user_id == g.user.id:
+        flash('Cannot like own message')
+        return None
+
+    if liked_message in user_likes:
+        g.user.likes = [l for l in user_likes if l != liked_message]
+    else:
+        g.user.likes.append(liked_message)
+
+    db.session.commit()
+
+    return redirect("/")
+
+@app.route('/users/<int:user_id>/likes')
+def list_likes(user_id):
+    if not g.user:
+        flash('Not authorized')
+        return redirect('/')
+    
+    user = User.query.get_or_404(user_id)
+    return render_template('users/likes.html', user=user)
 
 
 ##############################################################################
@@ -323,7 +354,10 @@ def homepage():
                     .limit(100)
                     .all())
 
-        return render_template('home.html', messages=messages)
+        liked_message_ids = [message.id for message in g.user.likes]
+
+
+        return render_template('home.html', messages=messages, likes=liked_message_ids)
 
     else:
         return render_template('home-anon.html')
