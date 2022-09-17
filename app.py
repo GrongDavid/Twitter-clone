@@ -223,6 +223,7 @@ def profile():
     image_url = form.image_url
     header_image_url = form.header_image_url
     bio = form.bio.data
+    
 
 
 
